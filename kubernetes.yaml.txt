@@ -1,0 +1,115 @@
+FROM openjdk:8-jdk-alpine
+
+WORKDIR /app
+
+COPY target/myapp.jar app.jar
+
+CMD ["java", "-jar", "app.jar"]
+
+
+docker build -t myapp:latest .
+
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myapp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: myapp
+  template:
+    metadata:
+      labels:
+        app: myapp
+    spec:
+      containers:
+        - name: myapp
+          image: myapp:latest
+          env:
+            - name: MONGO_URI
+              value: mongodb://mongo:27017/mydb
+          ports:
+            - containerPort: 8080
+
+
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: myapp
+spec:
+  selector:
+    app: myapp
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+  type: LoadBalancer
+
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongo
+  template:
+    metadata:
+      labels:
+        app: mongo
+    spec:
+      containers:
+        - name: mongo
+          image: mongo:4.4
+          volumeMounts:
+            - name: mongo-persistent-storage
+              mountPath: /data/db
+      volumes:
+        - name: mongo-persistent-storage
+          persistentVolumeClaim:
+            claimName: mongo-pvc
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mongo-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+
+
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo
+spec:
+  selector:
+    app: mongo
+  ports:
+    - name: mongo
+      port: 27017
+      targetPort: 27017
+
+
+
+kubectl apply -f mongodb-deployment.yaml
+kubectl apply -f mongodb-service.yaml
+
+
+kubectl apply -f myapp-deployment.yaml
+kubectl apply -f myapp-service.yaml
+
+
+kubectl get pods
+kubectl get services
+
+
